@@ -67,7 +67,8 @@ export function ProductSearch() {
             <div className="mt-8 flex justify-center">
               <Pagination
                 classNames={{
-                  root: 'flex gap-1',
+                  root: '',
+                  list: 'flex gap-1',
                   item: 'rounded-md border border-border',
                   link: 'flex h-9 w-9 items-center justify-center text-sm hover:bg-muted',
                   selectedItem: 'bg-primary text-primary-foreground border-primary',
