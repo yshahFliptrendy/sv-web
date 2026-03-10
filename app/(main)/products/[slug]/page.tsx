@@ -51,7 +51,7 @@ export default async function ProductDetailPage({ params }: Props) {
 
   if (!product) notFound()
 
-  const affiliateHref = `/go/${product.id}`
+  const affiliateHref = `/api/go/${product.id}`
   const brand = product.brand as any
   const ingredients = (product.product_ingredients as any[])?.map((pi: any) => pi.ingredient) ?? []
   const certifications = (product.product_certifications as any[])?.map((pc: any) => pc.certification) ?? []

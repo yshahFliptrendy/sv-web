@@ -14,7 +14,7 @@ export async function GET(
     supabase.auth.getUser(),
     supabase
       .from('products')
-      .select('affiliate_url, skimlinks_url, amazon_asin')
+      .select('affiliate_url, skimlinks_url, amazon_asin, source_url')
       .eq('id', productId)
       .eq('status', 'published')
       .single(),
@@ -36,13 +36,14 @@ export async function GET(
     user_agent: userAgent,
   }).then(() => {}) // fire-and-forget
 
-  // Redirect priority: skimlinks_url → affiliate_url → amazon
+  // Redirect priority: skimlinks_url → affiliate_url → amazon → source_url
   const destination =
     product.skimlinks_url ??
     product.affiliate_url ??
     (product.amazon_asin
       ? `https://www.amazon.com/dp/${product.amazon_asin}?tag=${process.env.AMAZON_ASSOCIATE_TAG}`
-      : null)
+      : null) ??
+    product.source_url
 
   if (!destination) {
     return NextResponse.redirect(new URL('/products', process.env.NEXT_PUBLIC_APP_URL!))
