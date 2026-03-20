@@ -5,8 +5,6 @@ const FOOTER_LINKS = {
   Shop: [
     { href: '/products', label: 'All Products' },
     { href: '/brands', label: 'Brands' },
-    { href: '/ingredients', label: 'Ingredients' },
-    { href: '/categories/food', label: 'Food & Drink' },
     { href: '/categories/beauty', label: 'Beauty' },
     { href: '/categories/home', label: 'Home' },
   ],

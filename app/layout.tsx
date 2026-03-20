@@ -48,6 +48,18 @@ export default function RootLayout({
         )}
       </head>
       <body className={`${geist.variable} font-sans antialiased`}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              name: 'ShoppingVegan',
+              url: process.env.NEXT_PUBLIC_APP_URL ?? 'https://shoppingvegan.com',
+              description: 'Discover the best vegan products, brands, and ingredients.',
+            }),
+          }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

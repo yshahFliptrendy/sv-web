@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 
 const FALLBACK_CATEGORIES = [
-  { slug: 'food', name: 'Food & Drink' },
   { slug: 'beauty', name: 'Beauty' },
   { slug: 'home', name: 'Home' },
   { slug: 'fashion', name: 'Fashion' },

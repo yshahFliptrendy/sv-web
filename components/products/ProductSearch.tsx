@@ -11,14 +11,35 @@ function ProductHitComponent({ hit }: { hit: ProductHit }) {
   return <ProductCard product={hit} />
 }
 
-export function ProductSearch() {
+interface ProductSearchProps {
+  category?: string
+  brand?: string
+  title?: string
+}
+
+export function ProductSearch({ category, brand, title }: ProductSearchProps) {
+  const refinementList: Record<string, string[]> = {}
+  if (category) {
+    refinementList.category_names = [category]
+  }
+  if (brand) {
+    refinementList.brand_name = [brand]
+  }
+  const initialUiState = Object.keys(refinementList).length > 0
+    ? { [PRODUCTS_INDEX]: { refinementList } }
+    : undefined
+
   return (
     <InstantSearchNext
       indexName={PRODUCTS_INDEX}
       searchClient={searchClient}
       routing
+      initialUiState={initialUiState}
+      future={{ preserveSharedStateOnUnmount: true }}
+      stalledSearchDelay={300}
     >
       <div className="container mx-auto max-w-7xl px-4 py-8">
+        {title && <h1 className="text-3xl font-bold mb-6">{title}</h1>}
         <div className="mb-6">
           <SearchBox
             placeholder="Search vegan products…"

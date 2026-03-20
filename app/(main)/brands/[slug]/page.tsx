@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/server'
-import { ProductGrid } from '@/components/products/ProductGrid'
+import { ProductSearch } from '@/components/products/ProductSearch'
 import { ExternalLink } from 'lucide-react'
 
 export const revalidate = 3600
@@ -11,17 +11,36 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
+export async function generateStaticParams() {
+  const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { data } = await supabase.from('brands').select('slug')
+  return (data ?? []).map((b) => ({ slug: b.slug }))
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const supabase = await createClient()
   const { data: brand } = await supabase
     .from('brands')
-    .select('name, description')
+    .select('name, description, logo_url')
     .eq('slug', slug)
     .single()
 
   if (!brand) return {}
-  return { title: `${brand.name} — Vegan Products`, description: brand.description ?? undefined }
+
+  const title = `${brand.name} — Vegan Products`
+
+  return {
+    title,
+    description: brand.description ?? undefined,
+    alternates: { canonical: `/brands/${slug}` },
+    openGraph: {
+      title,
+      description: brand.description ?? undefined,
+      ...(brand.logo_url ? { images: [brand.logo_url] } : {}),
+    },
+  }
 }
 
 export default async function BrandPage({ params }: Props) {
@@ -35,13 +54,6 @@ export default async function BrandPage({ params }: Props) {
     .single()
 
   if (!brand) notFound()
-
-  const { data: products } = await supabase
-    .from('products')
-    .select('*, brand:brands(id, slug, name, logo_url)')
-    .eq('brand_id', brand.id)
-    .eq('status', 'published')
-    .order('created_at', { ascending: false })
 
   return (
     <div>
@@ -59,7 +71,7 @@ export default async function BrandPage({ params }: Props) {
                 <h1 className="text-3xl font-bold">{brand.name}</h1>
                 {brand.is_verified && (
                   <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                    ✓ Verified Vegan
+                    Verified Vegan
                   </span>
                 )}
               </div>
@@ -81,13 +93,8 @@ export default async function BrandPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Products */}
-      <div className="container mx-auto max-w-7xl px-4 py-8">
-        <h2 className="text-xl font-semibold mb-6">
-          {products?.length ?? 0} Products from {brand.name}
-        </h2>
-        <ProductGrid products={products ?? []} />
-      </div>
+      {/* Products with filters */}
+      <ProductSearch brand={brand.name} />
     </div>
   )
 }

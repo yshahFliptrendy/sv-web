@@ -31,14 +31,13 @@ export default async function HomePage() {
     <div>
       {/* Hero */}
       <section className="bg-muted border-b">
-        <div className="container mx-auto max-w-7xl px-4 py-20 text-center">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
+        <div className="container mx-auto max-w-7xl px-4 py-8 text-center">
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
             Discover the Best
-            <span className="text-primary block">Vegan Products</span>
+            <span className="text-primary"> Vegan Products</span>
           </h1>
-          <p className="mt-6 mx-auto max-w-2xl text-lg text-muted-foreground">
-            Browse thousands of vegan, cruelty-free products — from food and beauty
-            to home and fashion. All in one place.
+          <p className="mt-2 mx-auto max-w-2xl text-sm text-muted-foreground">
+            Browse thousands of vegan, cruelty-free products
           </p>
         </div>
       </section>

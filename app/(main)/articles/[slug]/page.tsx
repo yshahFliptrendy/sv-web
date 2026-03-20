@@ -13,6 +13,13 @@ interface Props {
   searchParams: Promise<{ preview?: string }>
 }
 
+export async function generateStaticParams() {
+  const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { data } = await supabase.from('articles').select('slug').eq('status', 'published')
+  return (data ?? []).map((a) => ({ slug: a.slug }))
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const supabase = await createClient()
@@ -25,10 +32,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!article) return {}
 
+  const title = article.seo_title ?? article.title
+  const description = article.seo_description ?? article.excerpt ?? undefined
+
   return {
-    title: article.seo_title ?? article.title,
-    description: article.seo_description ?? article.excerpt ?? undefined,
-    openGraph: article.cover_image ? { images: [article.cover_image] } : undefined,
+    title,
+    description,
+    alternates: { canonical: `/articles/${slug}` },
+    openGraph: {
+      title,
+      description,
+      ...(article.cover_image ? { images: [article.cover_image] } : {}),
+    },
   }
 }
 
@@ -71,8 +86,32 @@ export default async function ArticlePage({ params, searchParams }: Props) {
     ?.sort((a: any, b: any) => a.sort_order - b.sort_order)
     .map((ap: any) => ap.product) ?? []
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://shoppingvegan.com'
+
+  const articleJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.title,
+    description: article.excerpt ?? undefined,
+    image: article.cover_image ?? undefined,
+    url: `${baseUrl}/articles/${slug}`,
+    datePublished: article.published_at ?? undefined,
+    dateModified: article.updated_at ?? article.published_at ?? undefined,
+    author: {
+      '@type': 'Person',
+      name: author?.display_name ?? 'ShoppingVegan',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'ShoppingVegan',
+      url: baseUrl,
+    },
+  }
+
   return (
     <article className="container mx-auto max-w-3xl px-4 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
+
       {isAdminPreview && (
         <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
           Preview mode — this article is <strong>{article.status}</strong> and not publicly visible.

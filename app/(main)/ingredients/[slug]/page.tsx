@@ -9,6 +9,13 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
+export async function generateStaticParams() {
+  const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { data } = await supabase.from('ingredients').select('slug')
+  return (data ?? []).map((i) => ({ slug: i.slug }))
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const supabase = await createClient()
@@ -19,7 +26,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .single()
 
   if (!ing) return {}
-  return { title: `${ing.name} — Vegan Ingredient`, description: ing.description ?? undefined }
+  return {
+    title: `${ing.name} — Vegan Ingredient`,
+    description: ing.description ?? undefined,
+    alternates: { canonical: `/ingredients/${slug}` },
+  }
 }
 
 export default async function IngredientPage({ params }: Props) {

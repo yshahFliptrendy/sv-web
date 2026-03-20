@@ -14,21 +14,37 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
+export async function generateStaticParams() {
+  const { createClient: createDirectClient } = await import('@supabase/supabase-js')
+  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const { data } = await supabase.from('products').select('slug').eq('status', 'published')
+  return (data ?? []).map((p) => ({ slug: p.slug }))
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
   const supabase = await createClient()
   const { data: product } = await supabase
     .from('products')
-    .select('name, description, brand:brands(name)')
+    .select('name, description, image_url, price, currency, brand:brands(name)')
     .eq('slug', slug)
     .eq('status', 'published')
     .single()
 
   if (!product) return {}
 
+  const brandName = (product.brand as any)?.name
+  const title = `${product.name} by ${brandName}`
+
   return {
-    title: `${product.name} by ${(product.brand as any)?.name}`,
+    title,
     description: product.description ?? undefined,
+    alternates: { canonical: `/products/${slug}` },
+    openGraph: {
+      title,
+      description: product.description ?? undefined,
+      ...(product.image_url ? { images: [product.image_url] } : {}),
+    },
   }
 }
 
@@ -66,8 +82,46 @@ export default async function ProductDetailPage({ params }: Props) {
     .neq('id', product.id)
     .limit(4)
 
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://shoppingvegan.com'
+
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.description ?? undefined,
+    image: product.image_url ?? undefined,
+    url: `${baseUrl}/products/${slug}`,
+    brand: brand ? { '@type': 'Brand', name: brand.name } : undefined,
+    ...(product.price ? {
+      offers: {
+        '@type': 'Offer',
+        price: Number(product.price),
+        priceCurrency: product.currency ?? 'USD',
+        availability: 'https://schema.org/InStock',
+        url: `${baseUrl}/products/${slug}`,
+      },
+    } : {}),
+  }
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: baseUrl },
+      { '@type': 'ListItem', position: 2, name: 'Products', item: `${baseUrl}/products` },
+      ...(categories[0] ? [{
+        '@type': 'ListItem', position: 3,
+        name: categories[0].name, item: `${baseUrl}/categories/${categories[0].slug}`,
+      }] : []),
+      { '@type': 'ListItem', position: categories[0] ? 4 : 3, name: product.name },
+    ],
+  }
+
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+
       {/* Breadcrumb */}
       <nav className="mb-6 text-sm text-muted-foreground">
         <Link href="/" className="hover:text-foreground">Home</Link>
