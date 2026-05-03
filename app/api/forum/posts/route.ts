@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { forumPostSchema } from '@/lib/validations'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
+
+const limiter = rateLimit({ key: 'forum-posts', limit: 10, windowMs: 60 * 60 * 1000 })
 
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const rl = await limiter.check(user.id)
+  if (!rl.success) return rateLimitResponse(rl.retryAfter)
 
   try {
     const body = await request.json()
@@ -17,7 +23,7 @@ export async function POST(request: Request) {
       .select()
       .single()
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: 'Failed to create post' }, { status: 500 })
     return NextResponse.json(data, { status: 201 })
   } catch (error: any) {
     if (error.name === 'ZodError') {

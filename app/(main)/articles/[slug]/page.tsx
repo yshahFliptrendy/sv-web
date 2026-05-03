@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
+import { cache } from 'react'
+import DOMPurify from 'isomorphic-dompurify'
 import { createClient } from '@/lib/supabase/server'
 import { ProductGrid } from '@/components/products/ProductGrid'
 import { formatDate } from '@/lib/utils'
@@ -13,22 +15,38 @@ interface Props {
   searchParams: Promise<{ preview?: string }>
 }
 
+// Deduplicated fetch — React cache ensures one query per request
+const getArticle = cache(async (slug: string) => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('articles')
+    .select(`
+      *,
+      author:profiles(id, display_name, avatar_url),
+      article_tags(tag:tags(id, slug, name)),
+      article_products(product:products(*, brand:brands(id, slug, name, logo_url)))
+    `)
+    .eq('slug', slug)
+    .eq('status', 'published')
+    .single()
+  return data
+})
+
 export async function generateStaticParams() {
   const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const { data } = await supabase.from('articles').select('slug').eq('status', 'published')
+  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const { data } = await supabase
+    .from('articles')
+    .select('slug')
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(100)
   return (data ?? []).map((a) => ({ slug: a.slug }))
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const supabase = await createClient()
-  const { data: article } = await supabase
-    .from('articles')
-    .select('title, seo_title, seo_description, excerpt, cover_image')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .single()
+  const article = await getArticle(slug)
 
   if (!article) return {}
 
@@ -50,33 +68,37 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ArticlePage({ params, searchParams }: Props) {
   const { slug } = await params
   const { preview } = await searchParams
-  const supabase = await createClient()
 
-  // Allow admins to preview any status via ?preview=1
+  let article: any = null
   let isAdminPreview = false
+
   if (preview === '1') {
+    // Admin preview — bypass cache, allow any status
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
       isAdminPreview = profile?.role === 'admin'
     }
+    if (isAdminPreview) {
+      const { data } = await supabase
+        .from('articles')
+        .select(`
+          *,
+          author:profiles(id, display_name, avatar_url),
+          article_tags(tag:tags(id, slug, name)),
+          article_products(product:products(*, brand:brands(id, slug, name, logo_url)))
+        `)
+        .eq('slug', slug)
+        .single()
+      article = data
+    }
   }
 
-  const now = new Date().toISOString()
-  const query = supabase
-    .from('articles')
-    .select(`
-      *,
-      author:profiles(id, display_name, avatar_url),
-      article_tags(tag:tags(id, slug, name)),
-      article_products(product:products(*, brand:brands(id, slug, name, logo_url)))
-    `)
-    .eq('slug', slug)
-
-  const { data: article } = await (isAdminPreview
-    ? query
-    : query.or(`status.eq.published,and(status.eq.scheduled,published_at.lte.${now})`)
-  ).single()
+  // Normal request — use cached fetch
+  if (!article) {
+    article = await getArticle(slug)
+  }
 
   if (!article) notFound()
 
@@ -166,7 +188,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
       {/* Body */}
       <div
         className="prose prose-neutral max-w-none"
-        dangerouslySetInnerHTML={{ __html: article.body }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(article.body) }}
       />
 
       {/* Embedded Products */}

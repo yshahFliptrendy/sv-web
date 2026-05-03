@@ -207,18 +207,37 @@ export function ArticleEditor({ mode, article, availableTags, availableProducts 
     if (res.ok) router.push('/admin/articles')
   }
 
+  // ─── URL validation ───────────────────────────────────────────────────────
+  function isSafeUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url)
+      return ['http:', 'https:'].includes(parsed.protocol)
+    } catch {
+      return false
+    }
+  }
+
   // ─── Link helper ──────────────────────────────────────────────────────────
   function setLink() {
     const url = window.prompt('URL')
     if (!url) return
     const href = /^https?:\/\//i.test(url) ? url : `https://${url}`
+    if (!isSafeUrl(href)) {
+      alert('Invalid URL. Only http:// and https:// links are allowed.')
+      return
+    }
     editor?.chain().focus().setLink({ href }).run()
   }
 
   // ─── Image helper ─────────────────────────────────────────────────────────
   function insertImage() {
     const url = window.prompt('Image URL')
-    if (url) editor?.chain().focus().setImage({ src: url }).run()
+    if (!url) return
+    if (!isSafeUrl(url)) {
+      alert('Invalid URL. Only http:// and https:// image URLs are allowed.')
+      return
+    }
+    editor?.chain().focus().setImage({ src: url }).run()
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://shoppingvegan.com'
@@ -499,7 +518,7 @@ export function ArticleEditor({ mode, article, availableTags, availableProducts 
               placeholder="https://…"
               className="w-full rounded-lg border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            {coverImage && (
+            {coverImage && isSafeUrl(coverImage) && (
               <div className="relative rounded-lg overflow-hidden aspect-video bg-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

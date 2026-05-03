@@ -1,31 +1,45 @@
 import type { Metadata } from 'next'
+import { unstable_cache } from 'next/cache'
+import { createClient } from '@supabase/supabase-js'
 import { CategoryNav } from '@/components/layout/CategoryNav'
 import { ProductGrid } from '@/components/products/ProductGrid'
 import { ArticleGrid } from '@/components/articles/ArticleGrid'
 import { NewsletterSignup } from '@/components/common/NewsletterSignup'
-import { createClient } from '@/lib/supabase/server'
 
 export const metadata: Metadata = {
   title: 'ShoppingVegan — Discover Vegan Products',
 }
 
-export default async function HomePage() {
-  const supabase = await createClient()
+const getHomeData = unstable_cache(
+  async () => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
 
-  const [{ data: featuredProducts }, { data: featuredArticles }] = await Promise.all([
-    supabase
-      .from('products')
-      .select('*, brand:brands(id, slug, name, logo_url)')
-      .eq('status', 'published')
-      .order('created_at', { ascending: false })
-      .limit(8),
-    supabase
-      .from('articles')
-      .select('*, author:profiles(id, display_name, avatar_url)')
-      .eq('status', 'published')
-      .order('published_at', { ascending: false })
-      .limit(6),
-  ])
+    const [{ data: products }, { data: articles }] = await Promise.all([
+      supabase
+        .from('products')
+        .select('id, slug, name, image_url, price, currency, brand:brands(name, slug)')
+        .eq('status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(8),
+      supabase
+        .from('articles')
+        .select('id, slug, title, excerpt, cover_image, published_at, author:profiles(display_name, avatar_url)')
+        .eq('status', 'published')
+        .order('published_at', { ascending: false })
+        .limit(6),
+    ])
+
+    return { products, articles }
+  },
+  ['home-data'],
+  { revalidate: 600 } // cache for 10 minutes
+)
+
+export default async function HomePage() {
+  const { products: featuredProducts, articles: featuredArticles } = await getHomeData()
 
   return (
     <div>

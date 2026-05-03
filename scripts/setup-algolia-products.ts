@@ -17,7 +17,7 @@ async function main() {
     indexName,
     indexSettings: {
       searchableAttributes: ['name', 'brand_name', 'description', 'category_names', 'certification_names', 'ingredient_names'],
-      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'filterOnly(price)'],
+      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'categories.lvl2', 'filterOnly(price)'],
       customRanking: ['desc(created_at)'],
       attributesToSnippet: ['description:20'],
       replicas: [
@@ -34,7 +34,7 @@ async function main() {
     indexName: `${indexName}_price_asc`,
     indexSettings: {
       ranking: ['asc(price)', 'typo', 'geo', 'words', 'filters', 'proximity', 'attribute', 'exact', 'custom'],
-      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'filterOnly(price)'],
+      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'categories.lvl2', 'filterOnly(price)'],
     },
   })
   console.log(`✓ Configured replica: ${indexName}_price_asc`)
@@ -44,7 +44,7 @@ async function main() {
     indexName: `${indexName}_price_desc`,
     indexSettings: {
       ranking: ['desc(price)', 'typo', 'geo', 'words', 'filters', 'proximity', 'attribute', 'exact', 'custom'],
-      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'filterOnly(price)'],
+      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'categories.lvl2', 'filterOnly(price)'],
     },
   })
   console.log(`✓ Configured replica: ${indexName}_price_desc`)
@@ -54,7 +54,7 @@ async function main() {
     indexName: `${indexName}_newest`,
     indexSettings: {
       ranking: ['desc(created_at)', 'typo', 'geo', 'words', 'filters', 'proximity', 'attribute', 'exact', 'custom'],
-      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'filterOnly(price)'],
+      attributesForFaceting: ['searchable(brand_name)', 'searchable(category_names)', 'searchable(certification_names)', 'categories.lvl0', 'categories.lvl1', 'categories.lvl2', 'filterOnly(price)'],
     },
   })
   console.log(`✓ Configured replica: ${indexName}_newest`)

@@ -48,7 +48,7 @@ export function CommentThread({ postId, comments, currentUserId }: Props) {
             onChange={(e) => setNewComment(e.target.value)}
             placeholder="Share your thoughts…"
             rows={3}
-            className="w-full rounded-xl border border-border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            className="w-full rounded-xl border border-border px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-primary resize-none"
           />
           <button
             type="submit"

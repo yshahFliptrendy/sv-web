@@ -1,14 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Leaf } from 'lucide-react'
 
+function getSafeRedirectPath(value: string | null): string {
+  if (!value) return '/'
+  if (!value.startsWith('/') || value.startsWith('//')) return '/'
+  if (/^\/[a-z]+:/i.test(value)) return '/'
+  return value
+}
+
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const searchParams = useSearchParams()
-  const next = searchParams.get('next') ?? '/'
+  const next = getSafeRedirectPath(searchParams.get('next'))
   const supabase = createClient()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -50,7 +65,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted px-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-background p-8 shadow-sm">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-background p-5 sm:p-8 shadow-sm">
         {/* Logo */}
         <div className="mb-8 text-center">
           <Link href="/" className="inline-flex items-center gap-2 text-primary font-bold text-xl">
@@ -111,7 +126,7 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div>
@@ -121,7 +136,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-lg border border-border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  className="w-full rounded-lg border border-border px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
 

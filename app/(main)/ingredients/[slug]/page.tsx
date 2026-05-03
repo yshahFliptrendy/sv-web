@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { ProductGrid } from '@/components/products/ProductGrid'
 
@@ -9,55 +10,51 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
+const getIngredient = cache(async (slug: string) => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('ingredients')
+    .select('id, slug, name, description, is_vegan')
+    .eq('slug', slug)
+    .single()
+  return data
+})
+
 export async function generateStaticParams() {
   const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
   const { data } = await supabase.from('ingredients').select('slug')
   return (data ?? []).map((i) => ({ slug: i.slug }))
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const supabase = await createClient()
-  const { data: ing } = await supabase
-    .from('ingredients')
-    .select('name, description')
-    .eq('slug', slug)
-    .single()
+  const ingredient = await getIngredient(slug)
 
-  if (!ing) return {}
+  if (!ingredient) return {}
   return {
-    title: `${ing.name} — Vegan Ingredient`,
-    description: ing.description ?? undefined,
+    title: `${ingredient.name} — Vegan Ingredient`,
+    description: ingredient.description ?? undefined,
     alternates: { canonical: `/ingredients/${slug}` },
   }
 }
 
 export default async function IngredientPage({ params }: Props) {
   const { slug } = await params
-  const supabase = await createClient()
-
-  const { data: ingredient } = await supabase
-    .from('ingredients')
-    .select('*')
-    .eq('slug', slug)
-    .single()
+  const ingredient = await getIngredient(slug)
 
   if (!ingredient) notFound()
 
-  const { data: products } = await supabase
-    .from('products')
-    .select('*, brand:brands(id, slug, name, logo_url)')
-    .eq('status', 'published')
-    .in(
-      'id',
-      (
-        await supabase
-          .from('product_ingredients')
-          .select('product_id')
-          .eq('ingredient_id', ingredient.id)
-      ).data?.map((r: any) => r.product_id) ?? []
-    )
+  // Single query with join instead of N+1 waterfall
+  const supabase = await createClient()
+  const { data: productLinks } = await supabase
+    .from('product_ingredients')
+    .select('product:products(id, slug, name, image_url, price, currency, brand:brands(id, slug, name, logo_url))')
+    .eq('ingredient_id', ingredient.id)
+
+  const products = (productLinks ?? [])
+    .map((pl: any) => pl.product)
+    .filter((p: any) => p !== null)
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8">

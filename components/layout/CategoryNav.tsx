@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+import { unstable_cache } from 'next/cache'
 
 const FALLBACK_CATEGORIES = [
   { slug: 'beauty', name: 'Beauty' },
@@ -11,15 +12,28 @@ const FALLBACK_CATEGORIES = [
   { slug: 'baby', name: 'Baby' },
 ]
 
-export async function CategoryNav() {
-  const supabase = await createClient()
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('slug, name')
-    .is('parent_id', null)
-    .order('sort_order')
-    .limit(10)
+const getCategories = unstable_cache(
+  async () => {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data } = await supabase
+      .from('categories')
+      .select('slug, name')
+      .is('parent_id', null)
+      .eq('is_active', true)
+      .neq('slug', 'other')
+      .order('sort_order')
+      .limit(10)
+    return data
+  },
+  ['category-nav'],
+  { revalidate: 3600, tags: ['categories'] }
+)
 
+export async function CategoryNav() {
+  const categories = await getCategories()
   const items = categories?.length ? categories : FALLBACK_CATEGORIES
 
   return (

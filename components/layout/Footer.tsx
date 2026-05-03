@@ -10,7 +10,6 @@ const FOOTER_LINKS = {
   ],
   Discover: [
     { href: '/articles', label: 'Blog' },
-    { href: '/forum', label: 'Community' },
   ],
   Company: [
     { href: '/about', label: 'About' },

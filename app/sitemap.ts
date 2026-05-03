@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@/lib/supabase/server'
+import { buildCategoryPaths, categoryPath } from '@/lib/categories'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://shoppingvegan.com'
 
@@ -15,7 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     supabase.from('products').select('slug, updated_at').eq('status', 'published'),
     supabase.from('articles').select('slug, updated_at').eq('status', 'published'),
     supabase.from('brands').select('slug, updated_at'),
-    supabase.from('categories').select('slug, updated_at'),
+    supabase.from('categories').select('id, slug, name, parent_id, updated_at').eq('is_active', true),
   ])
 
   const staticPages: MetadataRoute.Sitemap = [
@@ -48,12 +49,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  const categoryPages: MetadataRoute.Sitemap = (categories ?? []).map((c) => ({
-    url: `${BASE_URL}/categories/${c.slug}`,
-    lastModified: c.updated_at ? new Date(c.updated_at) : new Date(),
-    changeFrequency: 'weekly',
-    priority: 0.6,
-  }))
+  const activeCategories = categories ?? []
+  const activeById = new Map(activeCategories.map((c) => [c.id, c]))
+  const catPathMap = buildCategoryPaths(activeCategories)
+
+  // Drop categories whose ancestor chain passes through an inactive (missing) parent,
+  // since the resolved URL would not match the actual route.
+  const hasFullyActiveChain = (c: (typeof activeCategories)[number]): boolean => {
+    let current: (typeof activeCategories)[number] | undefined = c
+    while (current?.parent_id) {
+      const parent = activeById.get(current.parent_id)
+      if (!parent) return false
+      current = parent
+    }
+    return true
+  }
+
+  const categoryPages: MetadataRoute.Sitemap = activeCategories
+    .filter(hasFullyActiveChain)
+    .map((c) => ({
+      url: `${BASE_URL}${categoryPath(catPathMap.get(c.id) ?? [c.slug])}`,
+      lastModified: c.updated_at ? new Date(c.updated_at) : new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    }))
 
   return [
     ...staticPages,

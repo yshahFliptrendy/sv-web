@@ -11,20 +11,19 @@ const NAV_LINKS = [
   { href: '/products', label: 'Shop' },
   { href: '/brands', label: 'Brands' },
   { href: '/articles', label: 'Blog' },
-  { href: '/forum', label: 'Community' },
 ]
 
 export function Header() {
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user))
+    // Use getSession() (reads cookie, no network call) instead of getUser() (network call)
+    supabase.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null))
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
@@ -41,7 +40,6 @@ export function Header() {
     e.preventDefault()
     if (searchQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`)
-      setSearchOpen(false)
       setSearchQuery('')
     }
   }
@@ -71,35 +69,30 @@ export function Header() {
 
           {/* Right actions */}
           <div className="flex items-center gap-2">
-            {/* Search */}
-            {searchOpen ? (
-              <form onSubmit={handleSearch} className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search products & articles…"
-                  autoFocus
-                  className="w-48 rounded-lg border border-border px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                <button type="button" onClick={() => setSearchOpen(false)}>
-                  <X className="h-5 w-5 text-muted-foreground" />
-                </button>
-              </form>
-            ) : (
-              <button
-                onClick={() => setSearchOpen(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
-                aria-label="Search"
-              >
-                <Search className="h-5 w-5 text-muted-foreground" />
-              </button>
-            )}
+            {/* Search — always visible */}
+            <form onSubmit={handleSearch} className="relative hidden sm:block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products & articles…"
+                className="w-44 lg:w-64 rounded-full border border-border bg-muted/50 pl-9 pr-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-background transition-colors"
+              />
+            </form>
+            {/* Mobile search icon — navigates to search page */}
+            <Link
+              href="/search"
+              className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted transition-colors sm:hidden"
+              aria-label="Search"
+            >
+              <Search className="h-5 w-5 text-muted-foreground" />
+            </Link>
 
             {/* Wishlist */}
             <Link
               href="/wishlist"
-              className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+              className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted transition-colors"
               aria-label="Wishlist"
             >
               <Heart className="h-5 w-5 text-muted-foreground" />
@@ -110,7 +103,7 @@ export function Header() {
               <div className="relative">
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+                  className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
                   aria-label="Account"
                 >
                   <User className="h-4 w-4 text-primary" />
@@ -153,7 +146,7 @@ export function Header() {
             {/* Mobile menu toggle */}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors lg:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-muted transition-colors lg:hidden"
               aria-label="Menu"
             >
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

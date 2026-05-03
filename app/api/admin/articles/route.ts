@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       .select('id, slug')
       .single()
 
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 })
+    if (insertError) return NextResponse.json({ error: 'Failed to create article' }, { status: 500 })
 
     // Sync tags
     if (tag_names.length > 0) {
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ id: article.id, slug: article.slug }, { status: 201 })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? 'Unknown error' }, { status: 500 })
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
 }
 

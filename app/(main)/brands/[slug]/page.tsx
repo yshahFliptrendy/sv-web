@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { ProductSearch } from '@/components/products/ProductSearch'
+import { getCategoryTree } from '@/lib/categories'
 import { ExternalLink } from 'lucide-react'
 
 export const revalidate = 3600
@@ -11,21 +13,26 @@ interface Props {
   params: Promise<{ slug: string }>
 }
 
+const getBrand = cache(async (slug: string) => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('brands')
+    .select('id, slug, name, description, logo_url, website, is_verified')
+    .eq('slug', slug)
+    .single()
+  return data
+})
+
 export async function generateStaticParams() {
   const { createClient: createDirectClient } = await import('@supabase/supabase-js')
-  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+  const supabase = createDirectClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
   const { data } = await supabase.from('brands').select('slug')
   return (data ?? []).map((b) => ({ slug: b.slug }))
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const supabase = await createClient()
-  const { data: brand } = await supabase
-    .from('brands')
-    .select('name, description, logo_url')
-    .eq('slug', slug)
-    .single()
+  const brand = await getBrand(slug)
 
   if (!brand) return {}
 
@@ -45,13 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function BrandPage({ params }: Props) {
   const { slug } = await params
-  const supabase = await createClient()
-
-  const { data: brand } = await supabase
-    .from('brands')
-    .select('*')
-    .eq('slug', slug)
-    .single()
+  const brand = await getBrand(slug)
 
   if (!brand) notFound()
 
@@ -93,8 +94,8 @@ export default async function BrandPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Products with filters */}
-      <ProductSearch brand={brand.name} />
+      {/* Products with filters — pass brand filter so category counts reflect this brand */}
+      <ProductSearch brand={brand.name} categoryTree={await getCategoryTree(`brand_name:'${brand.name.replace(/'/g, "\\'")}'`)} />
     </div>
   )
 }

@@ -25,13 +25,14 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      setUserId(user.id)
+    // Use getSession() (reads cookie, no network call) instead of getUser()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return
+      setUserId(session.user.id)
       supabase
         .from('wishlists')
         .select('product_id')
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
         .then(({ data }) => {
           if (data) {
             setSavedIds(new Set(data.map((row) => row.product_id)))

@@ -35,13 +35,15 @@ export const profiles = pgTable('profiles', {
 // ─── Categories ───────────────────────────────────────────────────────────────
 
 export const categories = pgTable('categories', {
-  id:        uuid('id').primaryKey().defaultRandom(),
-  slug:      text('slug').notNull().unique(),
-  name:      text('name').notNull(),
-  parentId:  uuid('parent_id').references((): any => categories.id),
-  imageUrl:  text('image_url'),
-  sortOrder: integer('sort_order').notNull().default(0),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  id:          uuid('id').primaryKey().defaultRandom(),
+  slug:        text('slug').notNull().unique(),
+  name:        text('name').notNull(),
+  description: text('description'),
+  parentId:    uuid('parent_id').references((): any => categories.id),
+  imageUrl:    text('image_url'),
+  sortOrder:   integer('sort_order').notNull().default(0),
+  isActive:    boolean('is_active').notNull().default(true),
+  createdAt:   timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 // ─── Brands ───────────────────────────────────────────────────────────────────
@@ -94,6 +96,8 @@ export const products = pgTable('products', {
   skimlinksUrl:    text('skimlinks_url'),
   amazonAsin:      text('amazon_asin'),
   sourceUrl:       text('source_url'),
+  seoTitle:        text('seo_title'),
+  seoDescription:  text('seo_description'),
   status:          productStatusEnum('status').notNull().default('draft'),
   algoliaSyncedAt: timestamp('algolia_synced_at', { withTimezone: true }),
   createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -264,4 +268,32 @@ export const forumPostsRelations = relations(forumPosts, ({ one, many }) => ({
   author:    one(profiles, { fields: [forumPosts.authorId], references: [profiles.id] }),
   comments:  many(forumComments),
   votes:     many(forumVotes),
+}))
+
+// ─── Ad Placements ──────────────────────────────────────────────────────────────
+
+export const adPlacements = pgTable('ad_placements', {
+  id:         uuid('id').primaryKey().defaultRandom(),
+  name:       text('name').notNull(),
+  placement:  text('placement').notNull().default('category_sidebar'),
+  imageUrl:   text('image_url'),
+  linkUrl:    text('link_url'),
+  altText:    text('alt_text').notNull().default(''),
+  categoryId: uuid('category_id').references(() => categories.id),
+  articleId:  uuid('article_id').references(() => articles.id),
+  isActive:   boolean('is_active').notNull().default(true),
+  startDate:  timestamp('start_date', { withTimezone: true }),
+  endDate:    timestamp('end_date', { withTimezone: true }),
+  sortOrder:  integer('sort_order').notNull().default(0),
+  createdAt:  timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:  timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  categoryIdx:  index('ad_placements_category_id_idx').on(t.categoryId),
+  placementIdx: index('ad_placements_placement_idx').on(t.placement),
+  activeIdx:    index('ad_placements_is_active_idx').on(t.isActive),
+}))
+
+export const adPlacementsRelations = relations(adPlacements, ({ one }) => ({
+  category: one(categories, { fields: [adPlacements.categoryId], references: [categories.id] }),
+  article:  one(articles, { fields: [adPlacements.articleId], references: [articles.id] }),
 }))

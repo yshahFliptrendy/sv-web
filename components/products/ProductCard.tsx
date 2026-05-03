@@ -29,7 +29,7 @@ export function ProductCard({ product }: Props) {
           {imageUrl ? (
             <Image
               src={imageUrl}
-              alt={name}
+              alt={brandName ? `${brandName} ${name}` : name}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className="product-card-image object-contain p-4"

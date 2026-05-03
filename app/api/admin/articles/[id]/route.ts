@@ -65,7 +65,7 @@ export async function PATCH(
       .update(updates)
       .eq('id', id)
 
-    if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+    if (updateError) return NextResponse.json({ error: 'Failed to update article' }, { status: 500 })
 
     // Sync tags
     if (Array.isArray(tag_names)) {
@@ -96,7 +96,7 @@ export async function PATCH(
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? 'Unknown error' }, { status: 500 })
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
 }
 
@@ -109,7 +109,7 @@ export async function DELETE(
 
   const { id } = await params
   const { error: deleteError } = await supabase.from('articles').delete().eq('id', id)
-  if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 })
+  if (deleteError) return NextResponse.json({ error: 'Failed to delete article' }, { status: 500 })
 
   await deleteArticleFromIndex(id).catch(() => {})
 

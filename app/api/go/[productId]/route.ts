@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { headers } from 'next/headers'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
+
+const limiter = rateLimit({ key: 'affiliate-go', limit: 120, windowMs: 60 * 1000 })
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ productId: string }> }
 ) {
+  const rl = await limiter.check()
+  if (!rl.success) return rateLimitResponse(rl.retryAfter)
+
   const { productId } = await params
   const supabase = await createClient()
   const serviceClient = await createServiceClient()
@@ -27,14 +33,14 @@ export async function GET(
   // Log click (non-blocking)
   const headersList = await headers()
   const ip = headersList.get('x-forwarded-for')?.split(',')[0] ?? null
-  const userAgent = headersList.get('user-agent') ?? null
+  const userAgent = headersList.get('user-agent')?.substring(0, 500) ?? null
 
   serviceClient.from('affiliate_clicks').insert({
     product_id: productId,
     user_id: user?.id ?? null,
     ip,
     user_agent: userAgent,
-  }).then(() => {}) // fire-and-forget
+  }).then(() => {}, () => {}) // fire-and-forget
 
   // Redirect priority: skimlinks_url → affiliate_url → amazon → source_url
   const destination =

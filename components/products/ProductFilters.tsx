@@ -1,34 +1,169 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { ClearRefinements, useRefinementList, useCurrentRefinements, useRange } from 'react-instantsearch'
+import { useState, useRef, useCallback } from 'react'
+import * as Slider from '@radix-ui/react-slider'
+import Link from 'next/link'
+import { ClearRefinements, useRefinementList, useCurrentRefinements, useInstantSearch } from 'react-instantsearch'
 import { ChevronDown } from 'lucide-react'
 
-export function ProductFilters() {
+export interface CategoryNode {
+  name: string
+  path: string
+  count?: number
+  children?: CategoryNode[]
+}
+
+interface ProductFiltersProps {
+  categoryTree?: CategoryNode[]
+  activeCategoryPath?: string
+  hideBrandFilter?: boolean
+  onCategoryFilter?: (hierName: string | null) => void
+  activeCategoryFilter?: string | null
+  onPriceChange?: (range: [number | null, number | null]) => void
+  priceRange?: [number | null, number | null]
+}
+
+export function ProductFilters({ categoryTree, activeCategoryPath, hideBrandFilter, onCategoryFilter, activeCategoryFilter, onPriceChange, priceRange }: ProductFiltersProps) {
   return (
     <div className="space-y-1">
       {/* Active filters summary */}
       <ActiveFilters />
 
       <FilterSection title="Price" defaultOpen>
-        <PriceFilter />
+        <PriceFilter onPriceChange={onPriceChange} priceRange={priceRange} />
       </FilterSection>
 
       <Divider />
 
-      {/* Category - shown as plain links like Amazon */}
+      {/* Category - real links for SEO, or inline filter buttons on brand pages */}
       <FilterSection title="Category" defaultOpen>
-        <CategoryLinks />
+        <CategoryNav tree={categoryTree ?? []} activePath={activeCategoryPath} onCategoryFilter={onCategoryFilter} activeCategoryFilter={activeCategoryFilter} />
       </FilterSection>
 
-      <Divider />
-
-      <FilterSection title="Brand" defaultOpen>
-        <BrandFilter />
-      </FilterSection>
+      {!hideBrandFilter && (
+        <>
+          <Divider />
+          <FilterSection title="Brand" defaultOpen>
+            <BrandFilter />
+          </FilterSection>
+        </>
+      )}
 
     </div>
   )
+}
+
+function CategoryNav({ tree, activePath, onCategoryFilter, activeCategoryFilter }: { tree: CategoryNode[]; activePath?: string; onCategoryFilter?: (hierName: string | null) => void; activeCategoryFilter?: string | null }) {
+  // Read live facet counts from Algolia search state so counts update when filters change
+  const { results } = useInstantSearch()
+  const liveCounts: Record<string, number> = {
+    ...(results?.facets?.find((f) => f.name === 'categories.lvl0')?.data ?? {}),
+    ...(results?.facets?.find((f) => f.name === 'categories.lvl1')?.data ?? {}),
+    ...(results?.facets?.find((f) => f.name === 'categories.lvl2')?.data ?? {}),
+  }
+  const hasLiveCounts = Object.keys(liveCounts).length > 0
+
+  if (tree.length === 0) {
+    return <p className="text-xs text-muted-foreground">No categories available</p>
+  }
+
+  // Build a map from category name to its hierarchical name for facet lookup
+  // e.g., node at path /categories/nails/nail-polish has hierName "Nails > Nail Polish"
+  function buildHierNameMap(nodes: CategoryNode[], ancestors: string[] = []): Map<string, string> {
+    const map = new Map<string, string>()
+    for (const node of nodes) {
+      const hierName = [...ancestors, node.name].join(' > ')
+      map.set(node.path, hierName)
+      if (node.children) {
+        for (const [k, v] of buildHierNameMap(node.children, [...ancestors, node.name])) {
+          map.set(k, v)
+        }
+      }
+    }
+    return map
+  }
+  const hierNameMap = (hasLiveCounts || onCategoryFilter) ? buildHierNameMap(tree) : new Map<string, string>()
+
+  function getCount(node: CategoryNode): number | undefined {
+    if (hasLiveCounts) {
+      const hierName = hierNameMap.get(node.path)
+      return hierName ? liveCounts[hierName] : undefined
+    }
+    return node.count
+  }
+
+  function hasProducts(node: CategoryNode): boolean {
+    const count = getCount(node)
+    if ((count ?? 0) > 0) return true
+    return node.children?.some((c) => hasProducts(c)) ?? false
+  }
+
+  // Determine which paths should be expanded (ancestors of active category)
+  const expandedPaths = new Set<string>()
+  if (activePath) {
+    function markAncestors(nodes: CategoryNode[]): boolean {
+      for (const node of nodes) {
+        if (node.path === activePath || (node.children && markAncestors(node.children))) {
+          expandedPaths.add(node.path)
+          return true
+        }
+      }
+      return false
+    }
+    markAncestors(tree)
+  }
+
+  function renderNodes(nodes: CategoryNode[], depth = 0) {
+    const indent = depth === 0 ? '' : depth === 1 ? 'ml-4' : 'ml-8'
+    return (
+      <div className={`${indent} ${depth > 0 ? 'mt-0.5' : ''} space-y-0.5`}>
+        {nodes.filter((node) => hasProducts(node)).map((node) => {
+          const hierName = hierNameMap.get(node.path)
+          const isActive = onCategoryFilter
+            ? activeCategoryFilter === hierName
+            : activePath === node.path
+          const hasChildren = node.children && node.children.length > 0
+          const isExpanded = onCategoryFilter
+            ? hasChildren && (isActive || (node.children?.some((c) => activeCategoryFilter === hierNameMap.get(c.path)) ?? false))
+            : expandedPaths.has(node.path)
+          const count = getCount(node)
+
+          return (
+            <div key={node.path}>
+              {onCategoryFilter ? (
+                <button
+                  onClick={() => onCategoryFilter(isActive ? null : hierName ?? null)}
+                  className={`flex w-full items-center justify-between text-sm py-0.5 ${
+                    isActive ? 'font-bold text-foreground' : 'text-foreground hover:text-blue-600'
+                  }`}
+                >
+                  <span>{node.name}</span>
+                  {count != null && count > 0 && (
+                    <span className="text-xs text-muted-foreground">({count.toLocaleString()})</span>
+                  )}
+                </button>
+              ) : (
+                <Link
+                  href={node.path}
+                  className={`flex items-center justify-between text-sm py-0.5 ${
+                    isActive ? 'font-bold text-foreground' : 'text-foreground hover:text-blue-600'
+                  }`}
+                >
+                  <span>{node.name}</span>
+                  {count != null && count > 0 && (
+                    <span className="text-xs text-muted-foreground">({count.toLocaleString()})</span>
+                  )}
+                </Link>
+              )}
+              {hasChildren && isExpanded && renderNodes(node.children!, depth + 1)}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return renderNodes(tree)
 }
 
 function ActiveFilters() {
@@ -64,149 +199,6 @@ function ActiveFilters() {
   )
 }
 
-const CATEGORY_TREE: Record<string, string[]> = {
-  'Makeup': ['Foundation', 'Concealer', 'Blush', 'Bronzer', 'Highlighter', 'Powder', 'Primer', 'Setting Spray', 'Contour', 'Palette'],
-  'Eyes': ['Eyeshadow', 'Mascara', 'Eyeliner', 'Brow', 'Lashes', 'Eye Primer', 'Eye Pencil'],
-  'Lips': ['Lipstick', 'Lip Gloss', 'Lip Liner', 'Lip Balm', 'Lip Oil', 'Lip Tint', 'Lip Care'],
-  'Skincare': ['Serum', 'Moisturizer', 'Cleanser', 'Toner', 'Face Mask', 'Sunscreen', 'Eye Cream', 'Essence', 'Exfoliator', 'Retinol', 'Acne', 'Face Mist', 'Face Oil', 'Skin Cream', 'Skin Treatment'],
-  'Body Care': ['Body Lotion', 'Body Butter', 'Body Oil', 'Body Wash', 'Body Scrub', 'Soap', 'Deodorant', 'Hand Cream', 'Body Cream', 'Body Mist', 'Foot Care', 'Shaving', 'Stretch Mark'],
-  'Hair Care': ['Shampoo', 'Conditioner', 'Hair Mask', 'Hair Oil', 'Styling', 'Dry Shampoo', 'Leave-In', 'Hair Spray', 'Hair Color', 'Scalp Care'],
-  'Bath': ['Bath Bomb', 'Bath Soak', 'Shower'],
-  'Fragrance': ['Eau de Parfum', 'Eau de Toilette', 'Perfume', 'Cologne'],
-  'Nails': ['Nail Polish', 'Nail Care', 'Nail Art', 'Nail Tools', 'Dip & Acrylic'],
-  'Tools & Accessories': ['Brushes', 'Sponges', 'Mirrors', 'Rollers', 'Cases', 'Tweezers', 'Devices', 'Hair Tools', 'Wipes'],
-  'Sets & Bundles': ['Gift Set', 'Kit', 'Bundle', 'Travel Size', 'Sample'],
-  'Home': ['Candles', 'Diffusers', 'Household', 'Essential Oils', 'Incense'],
-}
-
-function CategoryLinks() {
-  const { items, refine } = useRefinementList({
-    attribute: 'category_names',
-    limit: 200,
-    sortBy: ['count:desc'],
-  })
-
-  const [showAll, setShowAll] = useState(false)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-
-  const itemMap = new Map(items.map((i) => [i.label, i]))
-
-  // Find which parents are active (refined)
-  const activeParent = Object.keys(CATEGORY_TREE).find((p) => itemMap.get(p)?.isRefined)
-
-  // Auto-expand active parent
-  const parentNames = Object.keys(CATEGORY_TREE)
-  const visible = showAll ? parentNames : parentNames.slice(0, 8)
-
-  if (items.length === 0) {
-    return <p className="text-xs text-muted-foreground">No categories available</p>
-  }
-
-  const toggleExpand = (name: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
-    })
-  }
-
-  // Check if any subcategory of a parent is refined
-  const hasRefinedChild = (parentName: string) => {
-    const subs = CATEGORY_TREE[parentName] || []
-    return subs.some((sub) => itemMap.get(sub)?.isRefined)
-  }
-
-  const handleSubClick = (subName: string, parentName: string) => {
-    const parentItem = itemMap.get(parentName)
-    const subItem = itemMap.get(subName)
-    if (!subItem) return
-
-    // If parent is refined and we're clicking a subcategory, deselect parent first
-    if (parentItem?.isRefined) {
-      refine(parentItem.value)
-    }
-    refine(subItem.value)
-  }
-
-  const handleParentClick = (parentName: string) => {
-    const parentItem = itemMap.get(parentName)
-    if (!parentItem) return
-
-    // If clicking parent while subcategories are selected, clear subcategories first
-    const subs = CATEGORY_TREE[parentName] || []
-    for (const sub of subs) {
-      const subItem = itemMap.get(sub)
-      if (subItem?.isRefined) {
-        refine(subItem.value)
-      }
-    }
-    refine(parentItem.value)
-  }
-
-  return (
-    <div className="space-y-0.5">
-      {visible.map((parentName) => {
-        const parentItem = itemMap.get(parentName)
-        if (!parentItem) return null
-        const isExpanded = expanded.has(parentName) || parentItem.isRefined || hasRefinedChild(parentName)
-        const subcategories = CATEGORY_TREE[parentName] || []
-
-        return (
-          <div key={parentName}>
-            <div className="flex items-center gap-1">
-              {subcategories.length > 0 && (
-                <button
-                  onClick={() => toggleExpand(parentName)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? '' : '-rotate-90'}`} />
-                </button>
-              )}
-              <button
-                onClick={() => handleParentClick(parentName)}
-                className={`flex-1 flex items-center justify-between text-left text-sm py-0.5 ${
-                  parentItem.isRefined ? 'font-bold text-foreground' : 'text-foreground hover:text-blue-600'
-                }`}
-              >
-                <span>{parentName}</span>
-                <span className="text-xs text-muted-foreground">({parentItem.count.toLocaleString()})</span>
-              </button>
-            </div>
-            {isExpanded && (
-              <div className="ml-5 space-y-0.5">
-                {subcategories.map((subName) => {
-                  const subItem = itemMap.get(subName)
-                  if (!subItem || subItem.count === 0) return null
-                  return (
-                    <button
-                      key={subName}
-                      onClick={() => handleSubClick(subName, parentName)}
-                      className={`flex items-center justify-between w-full text-left text-sm py-0.5 ${
-                        subItem.isRefined ? 'font-bold text-foreground' : 'text-muted-foreground hover:text-blue-600'
-                      }`}
-                    >
-                      <span>{subName}</span>
-                      <span className="text-xs text-muted-foreground">({subItem.count.toLocaleString()})</span>
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )
-      })}
-      {parentNames.length > 8 && (
-        <button
-          onClick={() => setShowAll(!showAll)}
-          className="mt-1 text-xs text-blue-600 hover:underline"
-        >
-          {showAll ? 'Show less' : 'Show more'}
-        </button>
-      )}
-    </div>
-  )
-}
 
 function FilterSection({
   title,
@@ -281,7 +273,7 @@ function BrandFilter() {
           }, 300)
         }}
         placeholder="Search brands…"
-        className="mb-2 w-full rounded border border-border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+        className="mb-2 w-full rounded border border-border px-2 py-1.5 text-base sm:text-sm focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
       />
       <div className="space-y-1">
         {filtered.map((item) => (
@@ -308,68 +300,60 @@ function BrandFilter() {
   )
 }
 
-function PriceFilter() {
-  const { range, start, refine } = useRange({ attribute: 'price' })
-  const [min, setMin] = useState('')
-  const [max, setMax] = useState('')
+const PRICE_MIN = 0
+const PRICE_MAX = 500
+const PRICE_STEP = 5
+
+function PriceFilter({ onPriceChange, priceRange }: { onPriceChange?: (range: [number | null, number | null]) => void; priceRange?: [number | null, number | null] }) {
+  const [values, setValues] = useState([PRICE_MIN, PRICE_MAX])
   const debounceRef = useRef<number>(0)
 
-  const rangeMin = range.min ?? 0
-  const rangeMax = range.max ?? 1000
+  const hasActiveFilter = values[0] > PRICE_MIN || values[1] < PRICE_MAX
 
-  const currentMin = (start[0] != null && start[0] !== -Infinity) ? start[0] : rangeMin
-  const currentMax = (start[1] != null && start[1] !== Infinity) ? start[1] : rangeMax
-
-  const apply = (newMin: string, newMax: string) => {
+  const applyFilter = useCallback((newValues: number[]) => {
     clearTimeout(debounceRef.current)
     debounceRef.current = window.setTimeout(() => {
-      const lo = newMin === '' ? undefined : Number(newMin)
-      const hi = newMax === '' ? undefined : Number(newMax)
-      refine([lo, hi])
-    }, 500)
+      const lo = newValues[0] > PRICE_MIN ? newValues[0] : null
+      const hi = newValues[1] < PRICE_MAX ? newValues[1] : null
+      onPriceChange?.([lo, hi])
+    }, 300)
+  }, [onPriceChange])
+
+  const handleChange = (newValues: number[]) => {
+    setValues(newValues)
+    applyFilter(newValues)
+  }
+
+  const clear = () => {
+    setValues([PRICE_MIN, PRICE_MAX])
+    clearTimeout(debounceRef.current)
+    onPriceChange?.([null, null])
   }
 
   return (
     <div>
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <input
-            type="number"
-            min={rangeMin}
-            max={rangeMax}
-            placeholder={`$${rangeMin}`}
-            value={min}
-            onChange={(e) => {
-              setMin(e.target.value)
-              apply(e.target.value, max)
-            }}
-            className="w-full rounded border border-border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-        <span className="text-sm text-muted-foreground">to</span>
-        <div className="flex-1">
-          <input
-            type="number"
-            min={rangeMin}
-            max={rangeMax}
-            placeholder={`$${rangeMax}`}
-            value={max}
-            onChange={(e) => {
-              setMax(e.target.value)
-              apply(min, e.target.value)
-            }}
-            className="w-full rounded border border-border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
+      <Slider.Root
+        className="relative flex w-full touch-none select-none items-center h-5"
+        min={PRICE_MIN}
+        max={PRICE_MAX}
+        step={PRICE_STEP}
+        value={values}
+        onValueChange={handleChange}
+      >
+        <Slider.Track className="relative h-1 w-full grow rounded-full bg-muted">
+          <Slider.Range className="absolute h-full rounded-full bg-primary" />
+        </Slider.Track>
+        <Slider.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 cursor-grab active:cursor-grabbing" />
+        <Slider.Thumb className="block h-4 w-4 rounded-full border border-primary/50 bg-background shadow-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 cursor-grab active:cursor-grabbing" />
+      </Slider.Root>
+      <div className="flex items-center justify-between mt-1.5 text-xs text-muted-foreground">
+        <span>${values[0]}</span>
+        <span>{values[1] >= PRICE_MAX ? `$${PRICE_MAX}+` : `$${values[1]}`}</span>
       </div>
-      {((currentMin ?? rangeMin) > rangeMin || (currentMax ?? rangeMax) < rangeMax) && (
+      {hasActiveFilter && (
         <button
-          onClick={() => {
-            setMin('')
-            setMax('')
-            refine([undefined, undefined])
-          }}
-          className="mt-2 text-xs text-blue-600 hover:underline"
+          onClick={clear}
+          className="mt-1.5 text-xs text-blue-600 hover:underline"
         >
           Clear price filter
         </button>

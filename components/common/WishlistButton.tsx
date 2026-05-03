@@ -33,7 +33,7 @@ export function WishlistButton({ productId, size = 'default' }: Props) {
       aria-label={saved ? 'Remove from wishlist' : 'Add to wishlist'}
       className={cn(
         'flex items-center justify-center rounded-full bg-background border border-border shadow-sm hover:border-primary transition-colors disabled:opacity-50',
-        size === 'sm' ? 'h-7 w-7' : 'h-10 w-10'
+        size === 'sm' ? 'h-9 w-9' : 'h-10 w-10'
       )}
     >
       <Heart

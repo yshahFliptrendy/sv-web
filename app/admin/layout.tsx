@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { LayoutDashboard, Package, FileText, Tag, Leaf } from 'lucide-react'
+import { LayoutDashboard, Package, FileText, Tag, Leaf, Megaphone, FolderTree } from 'lucide-react'
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -37,7 +37,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
             { href: '/admin/products', label: 'Products', icon: Package },
             { href: '/admin/articles', label: 'Articles', icon: FileText },
+            { href: '/admin/categories', label: 'Categories', icon: FolderTree },
             { href: '/admin/brands', label: 'Brands', icon: Tag },
+            { href: '/admin/ad-placements', label: 'Ad Placements', icon: Megaphone },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

@@ -42,7 +42,7 @@ async function main() {
     body_text: a.body ? stripHtml(a.body) : '',
     cover_image: a.cover_image ?? null,
     published_at: a.published_at ? Math.floor(new Date(a.published_at).getTime() / 1000) : null,
-    tags: [],
+    tags: [] as string[],
     author_name: a.author?.display_name ?? 'ShoppingVegan',
   }))
 

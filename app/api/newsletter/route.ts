@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { newsletterSchema } from '@/lib/validations'
+import { rateLimit, rateLimitResponse } from '@/lib/rate-limit'
+
+const limiter = rateLimit({ key: 'newsletter', limit: 5, windowMs: 60 * 60 * 1000 })
 
 export async function POST(request: Request) {
+  const rl = await limiter.check()
+  if (!rl.success) return rateLimitResponse(rl.retryAfter)
+
   try {
     const body = await request.json()
     const { email } = newsletterSchema.parse(body)
